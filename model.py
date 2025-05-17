@@ -80,3 +80,47 @@ class TransformerBlock(nn.Module):
         x = x + self.dropout1(self.attention(self.norm1(x)))
         x = x + self.dropout2(self.feed_forward(self.norm2(x)))
         return x
+
+
+class GPT(nn.Module):
+    def __init__(self, vocab_size, embed_dim, ff_dim, num_layers, heads, dropout=0.1, max_seq_len=2048):
+        super(GPT, self).__init__()
+        self.embed_dim = embed_dim
+        self.te = nn.Embedding(vocab_size, embed_dim)
+        self.pe = nn.Embedding(max_seq_len, embed_dim)
+
+        self.layers = nn.ModuleList([
+            TransformerBlock(embed_dim, heads, ff_dim,
+                             dropout=dropout, max_seq_len=max_seq_len)
+            for _ in range(num_layers)
+        ])
+
+        self.ln_f = nn.LayerNorm(embed_dim)
+        self.head = nn.Linear(embed_dim, vocab_size)
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        elif isinstance(module, nn.LayerNorm):
+            nn.init.ones_(module.weight)
+            nn.init.zeros_(module.bias)
+
+    def forward(self, x):
+        B, T = x.size()
+        positions = torch.arange(
+            0, T, device=x.device).unsqueeze(0).expand(B, T)
+
+        x = self.te(x) + self.pe(positions)
+
+        for layer in self.layers:
+            x = layer(x)
+
+        x = self.ln_f(x)
+        logits = self.head(x)
+        return logits
