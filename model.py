@@ -64,3 +64,19 @@ class FeedForward(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+
+
+class TransformerBlock(nn.Module):
+    def __init__(self, embed_dim, heads, ff_dim, dropout=0.1, max_seq_len=2048):
+        super(TransformerBlock, self).__init__()
+        self.attention = SelfAttention(embed_dim, heads, dropout, max_seq_len)
+        self.feed_forward = FeedForward(embed_dim, ff_dim, dropout)
+        self.norm1 = nn.LayerNorm(embed_dim)
+        self.norm2 = nn.LayerNorm(embed_dim)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+    def forward(self, x):
+        x = x + self.dropout1(self.attention(self.norm1(x)))
+        x = x + self.dropout2(self.feed_forward(self.norm2(x)))
+        return x
