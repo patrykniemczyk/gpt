@@ -30,8 +30,7 @@ class CharDataset(Dataset):
         self.block_size = block_size
 
     def __len__(self):
-        import math
-        return math.ceil((len(self.data) - 1) / self.block_size)
+        return (len(self.data) - 1) // self.block_size
 
     def __getitem__(self, idx):
         start = idx * self.block_size
@@ -45,6 +44,22 @@ block_size = 128
 data = encode(text)
 dataset = CharDataset(data, block_size)
 dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+
+
+@torch.no_grad()
+def sample(model, idx, max_new_tokens, temperature=1.0):
+    model.eval()
+    x = torch.tensor(idx, dtype=torch.long).unsqueeze(0).to(device)  # [1, T]
+
+    for _ in range(max_new_tokens):
+        logits = model(x)
+        logits = logits[:, -1, :] / temperature
+        probs = F.softmax(logits, dim=-1)
+        next_token = torch.multinomial(probs, num_samples=1)  # [1, 1]
+        x = torch.cat((x, next_token), dim=1)
+
+    return x[0].tolist()
+
 
 model = GPT(
     vocab_size=vocab_size,
@@ -72,6 +87,8 @@ if os.path.exists(checkpoint_path):
     start_epoch = checkpoint['epoch'] + 1
     print(f"Resuming from epoch {start_epoch}")
 
+print("Sampling before training...")
+print(decode(sample(model, [0], max_new_tokens=100)))
 
 epochs = 10
 
@@ -92,6 +109,9 @@ for epoch in range(start_epoch, epochs):
         total_loss += loss.item()
         pbar.set_description(
             f"Epoch {epoch+1} | Loss {total_loss / (pbar.n + 1):.4f}")
+
+    print(f"Sampling after epoch {epoch + 1}...")
+    print(decode(sample(model, [0], max_new_tokens=100)))
 
     torch.save({
         'epoch': epoch,
