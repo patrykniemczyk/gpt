@@ -16,7 +16,6 @@ class SelfAttention(nn.Module):
         self.linear = nn.Linear(embed_dim, embed_dim)
         self.dropout = nn.Dropout(dropout)
 
-        # Precompute causal mask [1, 1, T, T] (broadcastable)
         mask = torch.tril(torch.ones(max_seq_len, max_seq_len)
                           ).unsqueeze(0).unsqueeze(0)
         self.register_buffer("mask", mask)
@@ -24,27 +23,22 @@ class SelfAttention(nn.Module):
     def forward(self, x):
         B, T, _ = x.size()
 
-        # Linear projections and reshape
         queries = self.queries(x).view(
-            B, T, self.heads, self.hd).transpose(1, 2)
+            B, T, self.heads, self.hd).transpose(1, 2).contiguous()
         keys = self.keys(x).view(
-            B, T, self.heads, self.hd).transpose(1, 2)
+            B, T, self.heads, self.hd).transpose(1, 2).contiguous()
         values = self.values(x).view(
-            B, T, self.heads, self.hd).transpose(1, 2)
+            B, T, self.heads, self.hd).transpose(1, 2).contiguous()
 
-        # Attention scores
-        scores = torch.einsum(
-            "bhid,bhjd->bhij", queries, keys) / (self.hd ** 0.5)
+        scores = torch.einsum("bhid,bhjd->bhij", queries,
+                              keys) / (self.hd ** 0.5)
 
-        # Apply cached causal mask (trimmed to current T)
         causal_mask = self.mask[:, :, :T, :T].to(x.device)
         scores = scores.masked_fill(causal_mask == 0, float('-inf'))
 
-        # Attention weights
         attn = torch.softmax(scores, dim=-1)
         attn = self.dropout(attn)
 
-        # Attention output
         out = torch.einsum("bhij,bhjd->bhid", attn, values)
         out = out.transpose(1, 2).contiguous().view(B, T, self.embed_dim)
         out = self.linear(out)
@@ -73,12 +67,10 @@ class TransformerBlock(nn.Module):
         self.feed_forward = FeedForward(embed_dim, ff_dim, dropout)
         self.norm1 = nn.LayerNorm(embed_dim)
         self.norm2 = nn.LayerNorm(embed_dim)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
 
     def forward(self, x):
-        x = x + self.dropout1(self.attention(self.norm1(x)))
-        x = x + self.dropout2(self.feed_forward(self.norm2(x)))
+        x = x + self.attention(self.norm1(x))
+        x = x + self.feed_forward(self.norm2(x))
         return x
 
 
@@ -98,6 +90,11 @@ class GPT(nn.Module):
         self.ln_f = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, vocab_size)
 
+        self.register_buffer(
+            "positions_buffer",
+            torch.arange(max_seq_len).unsqueeze(0)
+        )
+
         self.apply(self._init_weights)
 
     def _init_weights(self, module):
@@ -113,8 +110,7 @@ class GPT(nn.Module):
 
     def forward(self, x):
         B, T = x.size()
-        positions = torch.arange(
-            0, T, device=x.device).unsqueeze(0).expand(B, T)
+        positions = self.positions_buffer[:, :T].expand(B, T).to(x.device)
 
         x = self.te(x) + self.pe(positions)
 
