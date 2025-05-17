@@ -71,3 +71,32 @@ if os.path.exists(checkpoint_path):
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     start_epoch = checkpoint['epoch'] + 1
     print(f"Resuming from epoch {start_epoch}")
+
+
+epochs = 10
+
+for epoch in range(start_epoch, epochs):
+    pbar = tqdm(dataloader)
+    total_loss = 0
+
+    for x, y in pbar:
+        x, y = x.to(device), y.to(device)
+
+        logits = model(x)
+        loss = F.cross_entropy(logits.view(-1, vocab_size), y.view(-1))
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+        pbar.set_description(
+            f"Epoch {epoch+1} | Loss {total_loss / (pbar.n + 1):.4f}")
+
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+    }, checkpoint_path)
+
+print("Training complete.")
