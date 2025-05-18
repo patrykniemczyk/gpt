@@ -5,26 +5,12 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 from model import GPT
+from tokenizer import Tokenizer
 
 text = open("data.txt", "r", encoding="utf-8").read()
 
-chars = sorted(list(set(text)))
-vocab_size = len(chars)
-print(f"Vocab size: {vocab_size}")
 
-stoi = {ch: i for i, ch in enumerate(chars)}
-itos = {i: ch for i, ch in enumerate(chars)}
-
-
-def encode(s):
-    return [stoi[c] for c in s]
-
-
-def decode(l):
-    return "".join([itos[i] for i in l])
-
-
-class CharDataset(Dataset):
+class BPEDataset(Dataset):
     def __init__(self, data, block_size):
         self.data = data
         self.block_size = block_size
@@ -40,9 +26,16 @@ class CharDataset(Dataset):
         return x, y
 
 
-block_size = 128
+block_size = 1024
+vocab_size = 2048
+
+tokenizer = Tokenizer(vocab_size)
+tokenizer.train(text)
+encode = tokenizer.encode
+decode = tokenizer.decode
+
 data = encode(text)
-dataset = CharDataset(data, block_size)
+dataset = BPEDataset(data, block_size)
 dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
 
 
@@ -88,9 +81,9 @@ if os.path.exists(checkpoint_path):
     print(f"Resuming from epoch {start_epoch}")
 
 print("Sampling before training...")
-print(decode(sample(model, [0], max_new_tokens=100)))
+print(decode(sample(model, [0], max_new_tokens=1024)))
 
-epochs = 10
+epochs = 100
 
 for epoch in range(start_epoch, epochs):
     pbar = tqdm(dataloader)
@@ -111,7 +104,7 @@ for epoch in range(start_epoch, epochs):
             f"Epoch {epoch+1} | Loss {total_loss / (pbar.n + 1):.4f}")
 
     print(f"Sampling after epoch {epoch + 1}...")
-    print(decode(sample(model, [0], max_new_tokens=100)))
+    print(decode(sample(model, [0], max_new_tokens=1024)))
 
     torch.save({
         'epoch': epoch,
