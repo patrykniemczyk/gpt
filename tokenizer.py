@@ -10,13 +10,9 @@ def get_freqs(ids_list):
 
 
 def max_pair(freqs):
-    max_freq = 0
-    max_pair = None
-    for pair, freq in freqs.items():
-        if freq > max_freq:
-            max_freq = freq
-            max_pair = pair
-    return max_pair, max_freq
+    if not freqs:
+        return None, 0
+    return max(freqs.items(), key=lambda x: x[1])
 
 
 def merge_pair(ids_list, pair, idx):
@@ -65,28 +61,43 @@ class Tokenizer:
             freqs = get_freqs(text_ids)
             if not freqs:
                 break
-            (pair, freq) = max_pair(freqs)
-            if freq < 2:
+            pair, freq = max_pair(freqs)
+            if pair is None or freq < 2:
                 break
             text_ids = merge_pair(text_ids, pair, current_idx)
             self.merges[pair] = current_idx
             self.vocab[current_idx] = self.vocab[pair[0]] + self.vocab[pair[1]]
             current_idx += 1
 
-        print(
-            f"Training complete. Merges: {len(self.merges)}, Vocab size: {len(self.vocab)}")
-        print("Special tokens:", self.special_tokens)
-        print(self.merges)
-        print(self.vocab)
-
     def encode(self, text):
-        pass
+        if not text:
+            return []
+        text_bytes = text.encode('utf-8')
+        ids = list(text_bytes)
+
+        while len(ids) > 1:
+            freqs = get_freqs([ids])
+            if not freqs:
+                break
+            pair = min(
+                freqs.keys(), key=lambda x: self.merges.get(x, float('inf')))
+            if pair not in self.merges:
+                break
+            ids = merge_pair([ids], pair, self.merges[pair])[0]
+
+        return ids
 
     def decode(self, ids_list):
-        pass
+        text_bytes = b"".join(self.vocab[id] for id in ids_list)
+        return text_bytes.decode('utf-8', errors='replace')
 
 
 tokenizer = Tokenizer()
 texts = ["Hello, world!", "This is a test.", "GPT is great!",
          "Let's tokenize this text.", "Special tokens are important."]
 tokenizer.train(texts)
+
+for text in texts:
+    encoded = tokenizer.encode(text)
+    decoded = tokenizer.decode(encoded)
+    print(f"Original: {text}\nEncoded: {encoded}\nDecoded: {decoded}\n")
