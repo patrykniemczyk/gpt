@@ -1,28 +1,28 @@
 {
 	"data": {
-		"num_training_samples": 1000,
+		"num_training_samples": 100000,
 		"dataset_name": "HuggingFaceFW/fineweb",
 		"dataset_config": "CC-MAIN-2014-10",
 		"dataset_split": "train",
 		"data_file": "data.json",
-		"tokenizer_training_samples": 10
+		"tokenizer_training_samples": 10000
 	},
 	"model": {
-		"max_block_size": 128,
-		"vocab_size": 303,
-		"embed_dim": 128,
-		"ff_dim": 512,
-		"num_layers": 4,
-		"heads": 8,
+		"max_block_size": 512,
+		"vocab_size": 50000,
+		"embed_dim": 768,
+		"ff_dim": 3072,
+		"num_layers": 12,
+		"heads": 12,
 		"dropout": 0.1
 	},
 	"training": {
-		"batch_size": 8,
-		"learning_rate": 3e-4,
+		"batch_size": 32,
+		"learning_rate": 5e-4,
 		"weight_decay": 0.01,
-		"epochs": 100,
+		"epochs": 50,
 		"max_grad_norm": 1.0,
-		"scheduler_T_max": 100,
+		"scheduler_T_max": 1000,
 		"scheduler_eta_min": 1e-6
 	},
 	"sampling": {
