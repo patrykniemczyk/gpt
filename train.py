@@ -9,15 +9,18 @@ import json
 from model import GPT
 from tokenizer import Tokenizer
 
-num_training_samples = 1000
+with open('config.json', 'r') as f:
+    config = json.load(f)
 
-if os.path.exists('data.json'):
+num_training_samples = config['data']['num_training_samples']
+
+if os.path.exists(config['data']['data_file']):
     print("Loading existing dataset...")
-    with open('data.json', 'r', encoding='utf-8') as f:
+    with open(config['data']['data_file'], 'r', encoding='utf-8') as f:
         texts = json.load(f)
 else:
-    ds = load_dataset("HuggingFaceFW/fineweb", "CC-MAIN-2014-10",
-                      split="train", streaming=True)
+    ds = load_dataset(config['data']['dataset_name'], config['data']['dataset_config'],
+                      split=config['data']['dataset_split'], streaming=True)
 
     texts = []
 
@@ -26,19 +29,18 @@ else:
         if i >= num_training_samples - 1:
             break
 
-    with open('data.json', 'w', encoding='utf-8') as f:
+    with open(config['data']['data_file'], 'w', encoding='utf-8') as f:
         json.dump(texts, f)
 
-print(f"Loaded {len(texts)} samples from dataset.")
-max_block_size = 128
-vocab_size = 300 + 3
+max_block_size = config['model']['max_block_size']
+vocab_size = config['model']['vocab_size']
 
 SOS_TOKEN = vocab_size - 3
 EOS_TOKEN = vocab_size - 2
 PAD_TOKEN = vocab_size - 1
 
 tokenizer = Tokenizer(vocab_size - 3)
-tokenizer.train(texts[:10])
+tokenizer.train(texts[:config['data']['tokenizer_training_samples']])
 encode = tokenizer.encode
 
 
@@ -81,7 +83,7 @@ def collate_fn(batch):
     return x_batch, y_batch
 
 
-dataloader = DataLoader(dataset, batch_size=8,
+dataloader = DataLoader(dataset, batch_size=config['training']['batch_size'],
                         shuffle=True, collate_fn=collate_fn)
 
 
@@ -116,6 +118,9 @@ def sample(model, idx, max_new_tokens, temperature=1.0, top_k=None, top_p=None):
                 1, sorted_indices, sorted_indices_to_remove)
             logits = logits.masked_fill(indices_to_remove, float('-inf'))
 
+        if torch.all(torch.isinf(logits) & (logits < 0)):
+            logits = torch.zeros_like(logits)
+
         probs = F.softmax(logits, dim=-1)
         next_token = torch.multinomial(probs, num_samples=1)
         x = torch.cat((x, next_token), dim=1)
@@ -128,11 +133,11 @@ def sample(model, idx, max_new_tokens, temperature=1.0, top_k=None, top_p=None):
 
 model = GPT(
     vocab_size=vocab_size,
-    embed_dim=128,
-    ff_dim=512,
-    num_layers=4,
-    heads=8,
-    dropout=0.1,
+    embed_dim=config['model']['embed_dim'],
+    ff_dim=config['model']['ff_dim'],
+    num_layers=config['model']['num_layers'],
+    heads=config['model']['heads'],
+    dropout=config['model']['dropout'],
     max_seq_len=max_block_size,
     pad_token_id=PAD_TOKEN
 )
@@ -140,12 +145,15 @@ model = GPT(
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.01)
+optimizer = torch.optim.AdamW(model.parameters(),
+                              lr=config['training']['learning_rate'],
+                              weight_decay=config['training']['weight_decay'])
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-    optimizer, T_max=100, eta_min=1e-6)
+    optimizer, T_max=config['training']['scheduler_T_max'],
+    eta_min=config['training']['scheduler_eta_min'])
 
 start_epoch = 0
-checkpoint_path = 'checkpoint.pth'
+checkpoint_path = config['files']['checkpoint_path']
 
 if os.path.exists(checkpoint_path):
     print("Loading checkpoint...")
@@ -159,10 +167,11 @@ if os.path.exists(checkpoint_path):
 
 print("Sampling before training...")
 sample_output = decode(
-    sample(model, [SOS_TOKEN], max_new_tokens=512, temperature=1.0))
+    sample(model, [SOS_TOKEN], max_new_tokens=config['sampling']['max_new_tokens'],
+           temperature=config['sampling']['temperature_default']))
 print(f"Initial sample: {sample_output[:200]}...")
 
-epochs = 100
+epochs = config['training']['epochs']
 best_loss = float('inf')
 
 for epoch in range(start_epoch, epochs):
@@ -182,7 +191,8 @@ for epoch in range(start_epoch, epochs):
 
         optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        torch.nn.utils.clip_grad_norm_(model.parameters(),
+                                       max_norm=config['training']['max_grad_norm'])
 
         optimizer.step()
 
@@ -204,19 +214,22 @@ for epoch in range(start_epoch, epochs):
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict(),
-            'best_loss': best_loss,
-        }, 'best_model.pth')
+            'best_loss': best_loss, }, config['files']['best_model_path'])
 
     print(f"Sampling after epoch {epoch + 1}...")
     print("Temperature 1.0:")
     print(decode(sample(model, [SOS_TOKEN],
-          max_new_tokens=512, temperature=1.0)))
+          max_new_tokens=config['sampling']['max_new_tokens'],
+          temperature=config['sampling']['temperature_default'])))
     print("\nTemperature 0.8:")
     print(decode(sample(model, [SOS_TOKEN],
-          max_new_tokens=512, temperature=0.8)))
+          max_new_tokens=config['sampling']['max_new_tokens'],
+          temperature=config['sampling']['temperature_alt'])))
     print("\nTop-k 50:")
     print(decode(sample(model, [SOS_TOKEN],
-          max_new_tokens=512, temperature=1.0, top_k=50)))
+          max_new_tokens=config['sampling']['max_new_tokens'],
+          temperature=config['sampling']['temperature_default'],
+          top_k=config['sampling']['top_k_default'])))
 
     torch.save({
         'epoch': epoch,
@@ -230,5 +243,5 @@ print("Training complete!")
 print(f"Best loss achieved: {best_loss:.4f}")
 print(f"Final checkpoint saved to: {checkpoint_path}")
 if best_loss < float('inf'):
-    print(f"Best model saved to: best_model.pth")
+    print(f"Best model saved to: {config['files']['best_model_path']}")
 print("="*50)
