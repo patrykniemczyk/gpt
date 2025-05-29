@@ -10,9 +10,9 @@ class SelfAttention(nn.Module):
         self.hd = embed_dim // heads
         assert self.hd * heads == embed_dim, "embed_dim must be divisible by heads"
 
-        self.queries = nn.Linear(embed_dim, embed_dim, bias=False)
-        self.keys = nn.Linear(embed_dim, embed_dim, bias=False)
-        self.values = nn.Linear(embed_dim, embed_dim, bias=False)
+        self.q = nn.Linear(embed_dim, embed_dim, bias=False)
+        self.k = nn.Linear(embed_dim, embed_dim, bias=False)
+        self.v = nn.Linear(embed_dim, embed_dim, bias=False)
         self.linear = nn.Linear(embed_dim, embed_dim)
         self.dropout = nn.Dropout(dropout)
 
@@ -20,29 +20,36 @@ class SelfAttention(nn.Module):
                           ).unsqueeze(0).unsqueeze(0)
         self.register_buffer("mask", mask)
 
-    def forward(self, x):
+    def forward(self, x, padding_mask=None):
         B, T, _ = x.size()
 
-        queries = self.queries(x).view(
-            B, T, self.heads, self.hd).transpose(1, 2).contiguous()
-        keys = self.keys(x).view(
-            B, T, self.heads, self.hd).transpose(1, 2).contiguous()
-        values = self.values(x).view(
-            B, T, self.heads, self.hd).transpose(1, 2).contiguous()
+        q = self.q(x).view(B, T, self.heads, self.hd).transpose(1, 2)
+        k = self.k(x).view(B, T, self.heads, self.hd).transpose(1, 2)
+        v = self.v(x).view(B, T, self.heads, self.hd).transpose(1, 2)
 
-        scores = torch.einsum("bhid,bhjd->bhij", queries,
-                              keys) / (self.hd ** 0.5)
+        scores = torch.einsum("bhid,bhjd->bhij", q,
+                              k) / (self.hd ** 0.5)
 
         causal_mask = self.mask[:, :, :T, :T].to(x.device)
-        scores = scores.masked_fill(causal_mask == 0, float('-inf'))
+        scores = scores.masked_fill(causal_mask == 0, float("-inf"))
+
+        if padding_mask is not None:
+            pad_k = padding_mask.unsqueeze(1).unsqueeze(2)
+            scores = scores.masked_fill(pad_k, float("-inf"))
 
         attn = torch.softmax(scores, dim=-1)
         attn = self.dropout(attn)
 
-        out = torch.einsum("bhij,bhjd->bhid", attn, values)
+        out = torch.einsum("bhij,bhjd->bhid", attn, v)
         out = out.transpose(1, 2).contiguous().view(B, T, self.embed_dim)
+
         out = self.linear(out)
         out = self.dropout(out)
+
+        if padding_mask is not None:
+            nonpad = (~padding_mask).unsqueeze(-1).type_as(out)
+            out = out * nonpad
+
         return out
 
 
@@ -68,16 +75,27 @@ class TransformerBlock(nn.Module):
         self.norm1 = nn.LayerNorm(embed_dim)
         self.norm2 = nn.LayerNorm(embed_dim)
 
-    def forward(self, x):
-        x = x + self.attention(self.norm1(x))
+    def forward(self, x, padding_mask=None):
+        x = x + self.attention(self.norm1(x), padding_mask)
         x = x + self.feed_forward(self.norm2(x))
+
         return x
 
 
 class GPT(nn.Module):
-    def __init__(self, vocab_size, embed_dim, ff_dim, num_layers, heads, dropout=0.1, max_seq_len=2048):
+    def __init__(
+        self,
+        vocab_size,
+        embed_dim,
+        ff_dim,
+        num_layers,
+        heads,
+        dropout=0.1,
+        max_seq_len=2048
+    ):
         super(GPT, self).__init__()
         self.embed_dim = embed_dim
+
         self.te = nn.Embedding(vocab_size, embed_dim)
         self.pe = nn.Embedding(max_seq_len, embed_dim)
 
@@ -108,15 +126,21 @@ class GPT(nn.Module):
             nn.init.ones_(module.weight)
             nn.init.zeros_(module.bias)
 
-    def forward(self, x):
+    def create_padding_mask(self, x, pad_token_id=0):
+        return x == pad_token_id
+
+    def forward(self, x, pad_token_id=0):
         B, T = x.size()
+
+        padding_mask = self.create_padding_mask(x, pad_token_id)
         positions = self.positions_buffer[:, :T].expand(B, T).to(x.device)
 
         x = self.te(x) + self.pe(positions)
 
         for layer in self.layers:
-            x = layer(x)
+            x = layer(x, padding_mask)
 
         x = self.ln_f(x)
+
         logits = self.head(x)
         return logits
