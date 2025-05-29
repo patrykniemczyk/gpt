@@ -91,9 +91,12 @@ class GPT(nn.Module):
         num_layers,
         heads,
         dropout=0.1,
-        max_seq_len=2048
+        max_seq_len=2048,
+        pad_token_id=0
     ):
         super(GPT, self).__init__()
+
+        self.pad_token_id = pad_token_id
         self.embed_dim = embed_dim
 
         self.te = nn.Embedding(vocab_size, embed_dim)
@@ -126,13 +129,13 @@ class GPT(nn.Module):
             nn.init.ones_(module.weight)
             nn.init.zeros_(module.bias)
 
-    def create_padding_mask(self, x, pad_token_id=0):
-        return x == pad_token_id
+    def create_padding_mask(self, x):
+        return x == self.pad_token_id
 
-    def forward(self, x, pad_token_id=0):
+    def forward(self, x):
         B, T = x.size()
 
-        padding_mask = self.create_padding_mask(x, pad_token_id)
+        padding_mask = self.create_padding_mask(x)
         positions = self.positions_buffer[:, :T].expand(B, T).to(x.device)
 
         x = self.te(x) + self.pe(positions)
