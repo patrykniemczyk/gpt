@@ -16,6 +16,9 @@
 		"heads": 12,
 		"dropout": 0.1
 	},
+	"tokenizer": {
+		"path": "tokenizer.txt"
+	},
 	"training": {
 		"batch_size": 32,
 		"learning_rate": 5e-4,

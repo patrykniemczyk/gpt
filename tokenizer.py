@@ -78,3 +78,20 @@ class Tokenizer:
     def decode(self, ids_list):
         text_bytes = b"".join(self.vocab[id] for id in ids_list)
         return text_bytes.decode('utf-8', errors='replace')
+
+    def save(self, path):
+        with open(path, 'w', encoding='utf-8') as f:
+            for pair, idx in self.merges.items():
+                f.write(f"{pair[0]} {pair[1]} {idx}\n")
+
+    def load(self, path):
+        self.merges = {}
+        self.vocab = {i: bytes([i]) for i in range(256)}
+
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) == 3:
+                    a, b, idx = map(int, parts)
+                    self.merges[(a, b)] = idx
+                    self.vocab[idx] = self.vocab[a] + self.vocab[b]

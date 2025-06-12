@@ -1,3 +1,4 @@
+tokenizer.txt
 best_model.pth
 checkpoint.pth
 data.json
