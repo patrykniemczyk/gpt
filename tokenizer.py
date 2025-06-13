@@ -76,7 +76,12 @@ class Tokenizer:
         return ids
 
     def decode(self, ids_list):
-        text_bytes = b"".join(self.vocab[id] for id in ids_list)
+        text_bytes = b""
+        for id in ids_list:
+            if id in self.vocab:
+                text_bytes += self.vocab[id]
+            else:
+                text_bytes += b"<UNK>"
         return text_bytes.decode('utf-8', errors='replace')
 
     def save(self, path):

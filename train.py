@@ -32,6 +32,7 @@ else:
     with open(config['data']['data_file'], 'w', encoding='utf-8') as f:
         json.dump(texts, f)
 
+print(f"Loaded {len(texts)} training samples.")
 max_block_size = config['model']['max_block_size']
 vocab_size = config['model']['vocab_size']
 
@@ -40,7 +41,22 @@ EOS_TOKEN = vocab_size - 2
 PAD_TOKEN = vocab_size - 1
 
 tokenizer = Tokenizer(vocab_size - 3)
-tokenizer.train(texts[:config['data']['tokenizer_training_samples']])
+if os.path.exists(config['tokenizer']['path']):
+    print("Loading existing tokenizer...")
+    tokenizer.load(config['tokenizer']['path'])
+else:
+    print("Training tokenizer...")
+    tokenizer.train(texts[:config['data']['tokenizer_training_samples']])
+    print("Tokenizer training complete.")
+    tokenizer.save(config['tokenizer']['path'])
+
+if SOS_TOKEN not in tokenizer.vocab:
+    tokenizer.vocab[SOS_TOKEN] = b""
+if EOS_TOKEN not in tokenizer.vocab:
+    tokenizer.vocab[EOS_TOKEN] = b""
+if PAD_TOKEN not in tokenizer.vocab:
+    tokenizer.vocab[PAD_TOKEN] = b""
+
 encode = tokenizer.encode
 
 
@@ -49,7 +65,12 @@ def decode_with_special_tokens(ids_list):
         SOS_TOKEN, EOS_TOKEN, PAD_TOKEN]]
     if not filtered_ids:
         return ""
-    return tokenizer.decode(filtered_ids)
+
+    valid_ids = [id for id in filtered_ids if id < len(tokenizer.vocab)]
+    if not valid_ids:
+        return ""
+
+    return tokenizer.decode(valid_ids)
 
 
 decode = decode_with_special_tokens
@@ -92,12 +113,15 @@ def sample(model, idx, max_new_tokens, temperature=1.0, top_k=None, top_p=None):
     model.eval()
     x = torch.tensor(idx, dtype=torch.long).unsqueeze(0).to(device)
 
-    for _ in range(max_new_tokens):
+    for i in range(max_new_tokens):
         if x.size(1) >= max_block_size:
             x = x[:, -max_block_size:]
 
         logits = model(x)
         logits = logits[:, -1, :] / temperature
+
+        if logits.size(-1) > len(tokenizer.vocab):
+            logits[:, len(tokenizer.vocab):] = float('-inf')
 
         if top_k is not None:
             top_k = min(top_k, logits.size(-1))
@@ -123,12 +147,23 @@ def sample(model, idx, max_new_tokens, temperature=1.0, top_k=None, top_p=None):
 
         probs = F.softmax(logits, dim=-1)
         next_token = torch.multinomial(probs, num_samples=1)
+
+        token_value = next_token.item()
+        if token_value >= len(tokenizer.vocab):
+            token_value = min(token_value, len(tokenizer.vocab) - 1)
+            next_token = torch.tensor(
+                [[token_value]], device=next_token.device)
+
         x = torch.cat((x, next_token), dim=1)
 
         if next_token.item() == EOS_TOKEN:
             break
 
-    return x[0].tolist()
+    final_tokens = x[0].tolist()
+    print(
+        f"Sampling complete. Generated {len(final_tokens) - len(idx)} new tokens")
+    print(f"Final sequence: {final_tokens}")
+    return final_tokens
 
 
 model = GPT(
@@ -217,19 +252,9 @@ for epoch in range(start_epoch, epochs):
             'best_loss': best_loss, }, config['files']['best_model_path'])
 
     print(f"Sampling after epoch {epoch + 1}...")
-    print("Temperature 1.0:")
     print(decode(sample(model, [SOS_TOKEN],
           max_new_tokens=config['sampling']['max_new_tokens'],
           temperature=config['sampling']['temperature_default'])))
-    print("\nTemperature 0.8:")
-    print(decode(sample(model, [SOS_TOKEN],
-          max_new_tokens=config['sampling']['max_new_tokens'],
-          temperature=config['sampling']['temperature_alt'])))
-    print("\nTop-k 50:")
-    print(decode(sample(model, [SOS_TOKEN],
-          max_new_tokens=config['sampling']['max_new_tokens'],
-          temperature=config['sampling']['temperature_default'],
-          top_k=config['sampling']['top_k_default'])))
 
     torch.save({
         'epoch': epoch,
