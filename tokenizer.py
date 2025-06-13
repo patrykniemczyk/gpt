@@ -63,15 +63,27 @@ class Tokenizer:
         text_bytes = text.encode('utf-8')
         ids = list(text_bytes)
 
-        while len(ids) > 1:
+        max_iterations = len(ids) * 2
+        iteration_count = 0
+
+        while len(ids) > 1 and iteration_count < max_iterations:
             freqs = get_freqs([ids])
             if not freqs:
                 break
-            pair = min(
-                freqs.keys(), key=lambda x: self.merges.get(x, float('inf')))
-            if pair not in self.merges:
+
+            valid_pairs = [
+                pair for pair in freqs.keys() if pair in self.merges]
+            if not valid_pairs:
                 break
+
+            pair = min(valid_pairs, key=lambda x: self.merges[x])
+            old_length = len(ids)
             ids = merge_pair([ids], pair, self.merges[pair])[0]
+
+            if len(ids) >= old_length:
+                break
+
+            iteration_count += 1
 
         return ids
 
@@ -93,10 +105,15 @@ class Tokenizer:
         self.merges = {}
         self.vocab = {i: bytes([i]) for i in range(256)}
 
-        with open(path, 'r', encoding='utf-8') as f:
-            for line in f:
-                parts = line.strip().split()
-                if len(parts) == 3:
-                    a, b, idx = map(int, parts)
-                    self.merges[(a, b)] = idx
-                    self.vocab[idx] = self.vocab[a] + self.vocab[b]
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) == 3:
+                        a, b, idx = map(int, parts)
+                        self.merges[(a, b)] = idx
+                        self.vocab[idx] = self.vocab[a] + self.vocab[b]
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Tokenizer file not found: {path}")
+        except Exception as e:
+            raise ValueError(f"Error loading tokenizer: {e}")

@@ -36,11 +36,12 @@ print(f"Loaded {len(texts)} training samples.")
 max_block_size = config['model']['max_block_size']
 vocab_size = config['model']['vocab_size']
 
+BASE_VOCAB_SIZE = vocab_size - 3
 SOS_TOKEN = vocab_size - 3
 EOS_TOKEN = vocab_size - 2
 PAD_TOKEN = vocab_size - 1
 
-tokenizer = Tokenizer(vocab_size - 3)
+tokenizer = Tokenizer(BASE_VOCAB_SIZE)
 if os.path.exists(config['tokenizer']['path']):
     print("Loading existing tokenizer...")
     tokenizer.load(config['tokenizer']['path'])
@@ -50,32 +51,38 @@ else:
     print("Tokenizer training complete.")
     tokenizer.save(config['tokenizer']['path'])
 
-if SOS_TOKEN not in tokenizer.vocab:
-    tokenizer.vocab[SOS_TOKEN] = b""
-if EOS_TOKEN not in tokenizer.vocab:
-    tokenizer.vocab[EOS_TOKEN] = b""
-if PAD_TOKEN not in tokenizer.vocab:
-    tokenizer.vocab[PAD_TOKEN] = b""
+tokenizer.vocab[SOS_TOKEN] = b"<SOS>"
+tokenizer.vocab[EOS_TOKEN] = b"<EOS>"
+tokenizer.vocab[PAD_TOKEN] = b"<PAD>"
 
 encode = tokenizer.encode
 
 
 def decode_with_special_tokens(ids_list):
-    filtered_ids = [id for id in ids_list if id not in [
-        SOS_TOKEN, EOS_TOKEN, PAD_TOKEN]]
-    if not filtered_ids:
-        return ""
+    result_bytes = b""
+    for token_id in ids_list:
+        if token_id == SOS_TOKEN:
+            continue  # Skip SOS token
+        elif token_id == EOS_TOKEN:
+            break     # Stop at EOS token
+        elif token_id == PAD_TOKEN:
+            continue  # Skip PAD token
+        elif token_id in tokenizer.vocab:
+            result_bytes += tokenizer.vocab[token_id]
+        else:
+            result_bytes += b"<UNK>"
 
-    valid_ids = [id for id in filtered_ids if id < len(tokenizer.vocab)]
-    if not valid_ids:
-        return ""
-
-    return tokenizer.decode(valid_ids)
+    return result_bytes.decode('utf-8', errors='replace')
 
 
 decode = decode_with_special_tokens
 
-texts_encoded = [encode(text)[:max_block_size-2] for text in texts]
+texts_encoded = []
+for text in texts:
+    encoded = encode(text)
+    if len(encoded) > max_block_size - 2:
+        encoded = encoded[:max_block_size - 2]
+    texts_encoded.append(encoded)
 
 
 class TextDataset(Dataset):
@@ -87,10 +94,18 @@ class TextDataset(Dataset):
 
     def __getitem__(self, idx):
         text = self.texts[idx]
-        if len(text) < max_block_size - 1:
-            text += [PAD_TOKEN] * (max_block_size - len(text) - 1)
+
         x = [SOS_TOKEN] + text
         y = text + [EOS_TOKEN]
+
+        if len(x) < max_block_size:
+            x += [PAD_TOKEN] * (max_block_size - len(x))
+        if len(y) < max_block_size:
+            y += [PAD_TOKEN] * (max_block_size - len(y))
+
+        x = x[:max_block_size]
+        y = y[:max_block_size]
+
         return torch.tensor(x, dtype=torch.long), torch.tensor(y, dtype=torch.long)
 
 
@@ -120,8 +135,8 @@ def sample(model, idx, max_new_tokens, temperature=1.0, top_k=None, top_p=None):
         logits = model(x)
         logits = logits[:, -1, :] / temperature
 
-        if logits.size(-1) > len(tokenizer.vocab):
-            logits[:, len(tokenizer.vocab):] = float('-inf')
+        if logits.size(-1) > vocab_size:
+            logits = logits[:, :vocab_size]
 
         if top_k is not None:
             top_k = min(top_k, logits.size(-1))
@@ -149,8 +164,8 @@ def sample(model, idx, max_new_tokens, temperature=1.0, top_k=None, top_p=None):
         next_token = torch.multinomial(probs, num_samples=1)
 
         token_value = next_token.item()
-        if token_value >= len(tokenizer.vocab):
-            token_value = min(token_value, len(tokenizer.vocab) - 1)
+        if token_value >= vocab_size:
+            token_value = vocab_size - 1
             next_token = torch.tensor(
                 [[token_value]], device=next_token.device)
 
@@ -162,7 +177,6 @@ def sample(model, idx, max_new_tokens, temperature=1.0, top_k=None, top_p=None):
     final_tokens = x[0].tolist()
     print(
         f"Sampling complete. Generated {len(final_tokens) - len(idx)} new tokens")
-    print(f"Final sequence: {final_tokens}")
     return final_tokens
 
 
