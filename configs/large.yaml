@@ -1,0 +1,56 @@
+# Large GPT Configuration
+# For training larger, more capable models
+
+data:
+  num_training_samples: 1000000
+  dataset_name: "HuggingFaceFW/fineweb"
+  dataset_config: "CC-MAIN-2014-10"
+  dataset_split: "train"
+  data_file: "data_large.json"
+  tokenizer_training_samples: 50000
+  validation_split: 0.05
+
+model:
+  max_block_size: 1024
+  vocab_size: 65536
+  embed_dim: 1536
+  ff_dim: 6144
+  num_layers: 24
+  heads: 24
+  dropout: 0.1
+
+tokenizer:
+  path: "tokenizer_large.json"
+  special_tokens:
+    bos: "<BOS>"
+    eos: "<EOS>"
+    pad: "<PAD>"
+    unk: "<UNK>"
+
+training:
+  batch_size: 8
+  learning_rate: 0.0003
+  weight_decay: 0.01
+  epochs: 100
+  max_grad_norm: 1.0
+  scheduler_T_max: 2000
+  scheduler_eta_min: 0.000001
+  warmup_steps: 2000
+  gradient_accumulation_steps: 8
+  eval_interval: 2000
+  save_interval: 10000
+  early_stopping_patience: 15
+  mixed_precision: true
+
+sampling:
+  max_new_tokens: 1024
+  temperature_default: 1.0
+  temperature_alt: 0.8
+  top_k_default: 50
+  top_p_default: 0.95
+
+files:
+  checkpoint_path: "checkpoint_large.pth"
+  best_model_path: "best_model_large.pth"
+  log_dir: "logs_large"
+  output_dir: "outputs_large"
