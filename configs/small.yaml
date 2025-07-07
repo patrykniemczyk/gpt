@@ -1,0 +1,56 @@
+# Small GPT Configuration
+# Optimized for quick training and testing
+
+data:
+  num_training_samples: 10000
+  dataset_name: "HuggingFaceFW/fineweb"
+  dataset_config: "CC-MAIN-2014-10"
+  dataset_split: "train"
+  data_file: "outputs/data.json"
+  tokenizer_training_samples: 5000
+  validation_split: 0.1
+
+model:
+  max_block_size: 256
+  vocab_size: 8192
+  embed_dim: 256
+  ff_dim: 1024
+  num_layers: 6
+  heads: 8
+  dropout: 0.1
+
+tokenizer:
+  path: "outputs/tokenizer.json"
+  special_tokens:
+    bos: "<BOS>"
+    eos: "<EOS>"
+    pad: "<PAD>"
+    unk: "<UNK>"
+
+training:
+  batch_size: 16
+  learning_rate: 0.001
+  weight_decay: 0.01
+  epochs: 20
+  max_grad_norm: 1.0
+  scheduler_T_max: 500
+  scheduler_eta_min: 0.000001
+  warmup_steps: 500
+  gradient_accumulation_steps: 2
+  eval_interval: 100
+  save_interval: 500
+  early_stopping_patience: 5
+  mixed_precision: false
+
+sampling:
+  max_new_tokens: 128
+  temperature_default: 1.0
+  temperature_alt: 0.8
+  top_k_default: 40
+  top_p_default: 0.95
+
+files:
+  checkpoint_path: "outputs/checkpoint.pth"
+  best_model_path: "outputs/best_model.pth"
+  log_dir: "outputs/logs"
+  output_dir: "outputs"

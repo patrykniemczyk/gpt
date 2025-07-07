@@ -1,0 +1,56 @@
+# Default GPT Configuration
+# This configuration provides reasonable defaults for training a GPT model
+
+data:
+  num_training_samples: 100000
+  dataset_name: "HuggingFaceFW/fineweb"
+  dataset_config: "CC-MAIN-2014-10"
+  dataset_split: "train"
+  data_file: "outputs/data.json"
+  tokenizer_training_samples: 10000
+  validation_split: 0.1
+
+model:
+  max_block_size: 512
+  vocab_size: 50000
+  embed_dim: 768
+  ff_dim: 3072
+  num_layers: 12
+  heads: 12
+  dropout: 0.1
+
+tokenizer:
+  path: "outputs/tokenizer.json"
+  special_tokens:
+    bos: "<BOS>"
+    eos: "<EOS>"
+    pad: "<PAD>"
+    unk: "<UNK>"
+
+training:
+  batch_size: 32
+  learning_rate: 0.0005
+  weight_decay: 0.01
+  epochs: 50
+  max_grad_norm: 1.0
+  scheduler_T_max: 1000
+  scheduler_eta_min: 0.000001
+  warmup_steps: 1000
+  gradient_accumulation_steps: 1
+  eval_interval: 1000
+  save_interval: 5000
+  early_stopping_patience: 10
+  mixed_precision: false
+
+sampling:
+  max_new_tokens: 512
+  temperature_default: 1.0
+  temperature_alt: 0.8
+  top_k_default: 50
+  top_p_default: 0.95
+
+files:
+  checkpoint_path: "outputs/checkpoint.pth"
+  best_model_path: "outputs/best_model.pth"
+  log_dir: "outputs/logs"
+  output_dir: "outputs"

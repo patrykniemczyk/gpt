@@ -1,7 +1,5 @@
-tokenizer.txt
-best_model.pth
-checkpoint.pth
-data.json
+# Output directory containing model weights, tokenizers, data, and logs
+outputs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
