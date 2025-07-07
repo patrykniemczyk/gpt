@@ -1,7 +1,5 @@
-# Output directories containing model weights, tokenizers, data, and logs
+# Output directory containing model weights, tokenizers, data, and logs
 outputs/
-outputs_small/
-outputs_large/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

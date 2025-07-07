@@ -6,7 +6,7 @@ data:
   dataset_name: "HuggingFaceFW/fineweb"
   dataset_config: "CC-MAIN-2014-10"
   dataset_split: "train"
-  data_file: "outputs_small/data_small.json"
+  data_file: "outputs/data.json"
   tokenizer_training_samples: 5000
   validation_split: 0.1
 
@@ -20,7 +20,7 @@ model:
   dropout: 0.1
 
 tokenizer:
-  path: "outputs_small/tokenizer_small.json"
+  path: "outputs/tokenizer.json"
   special_tokens:
     bos: "<BOS>"
     eos: "<EOS>"
@@ -50,7 +50,7 @@ sampling:
   top_p_default: 0.95
 
 files:
-  checkpoint_path: "outputs_small/checkpoint_small.pth"
-  best_model_path: "outputs_small/best_model_small.pth"
-  log_dir: "outputs_small/logs"
-  output_dir: "outputs_small"
+  checkpoint_path: "outputs/checkpoint.pth"
+  best_model_path: "outputs/best_model.pth"
+  log_dir: "outputs/logs"
+  output_dir: "outputs"
