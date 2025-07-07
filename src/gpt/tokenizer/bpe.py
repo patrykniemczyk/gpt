@@ -97,13 +97,21 @@ class BPETokenizer:
         if vocab_size <= 0:
             raise ValueError("vocab_size must be positive")
         
-        self.vocab_size = vocab_size
         self.special_tokens = special_tokens or {
             "bos": "<BOS>",
             "eos": "<EOS>", 
             "pad": "<PAD>",
             "unk": "<UNK>"
         }
+        
+        # Total vocabulary = 256 (bytes) + learned merges + special tokens
+        # But we want the total to be vocab_size
+        num_special = len(self.special_tokens)
+        if vocab_size < 256 + num_special:
+            raise ValueError(f"vocab_size must be at least {256 + num_special}")
+        
+        self.vocab_size = vocab_size
+        self.max_merges = vocab_size - 256 - num_special
         
         # Initialize vocabulary with byte-level tokens (0-255)
         self.vocab: Dict[int, bytes] = {i: bytes([i]) for i in range(256)}
@@ -113,14 +121,14 @@ class BPETokenizer:
         
         # Reserve special token IDs at the end of vocabulary
         self.special_token_ids: Dict[str, int] = {}
-        current_special_id = vocab_size + 256
-        for name, token_str in self.special_tokens.items():
-            self.special_token_ids[name] = current_special_id
-            self.vocab[current_special_id] = token_str.encode('utf-8')
-            current_special_id += 1
+        for i, (name, token_str) in enumerate(self.special_tokens.items()):
+            special_id = vocab_size - num_special + i
+            self.special_token_ids[name] = special_id
+            self.vocab[special_id] = token_str.encode('utf-8')
         
         logger.debug(f"Initialized BPETokenizer with vocab_size={vocab_size}")
         logger.debug(f"Special tokens: {self.special_token_ids}")
+        logger.debug(f"Max merges: {self.max_merges}")
 
     @property
     def bos_token_id(self) -> int:
@@ -171,8 +179,8 @@ class BPETokenizer:
         # Start with byte-level vocabulary (256 tokens)
         current_vocab_size = 256
         
-        # Perform BPE merges until we reach target vocabulary size
-        while current_vocab_size < self.vocab_size:
+        # Perform BPE merges until we reach the limit
+        while current_vocab_size < 256 + self.max_merges:
             # Get pair frequencies
             frequencies = _get_pair_frequencies(token_sequences)
             
