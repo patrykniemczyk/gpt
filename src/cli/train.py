@@ -1,5 +1,16 @@
 """Command line interface for training GPT models."""
 
+from gpt.utils.logging import setup_logging, get_logger
+from gpt.training.dataset import (
+    load_text_data,
+    prepare_datasets,
+    create_dataloader,
+    create_streaming_dataloader,
+)
+from gpt.training import Trainer
+from gpt.tokenizer import BPETokenizer
+from gpt.model import GPT
+from gpt.config import load_config, GPTConfig
 import argparse
 import sys
 from pathlib import Path
@@ -8,94 +19,82 @@ import torch
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from gpt.config import load_config, GPTConfig
-from gpt.model import GPT
-from gpt.tokenizer import BPETokenizer
-from gpt.training import Trainer
-from gpt.training.dataset import load_text_data, prepare_datasets, create_dataloader, create_streaming_dataloader
-from gpt.utils.logging import setup_logging, get_logger
-
 
 def main():
     """Main training entry point."""
     parser = argparse.ArgumentParser(description="Train a GPT model")
-    
+
     parser.add_argument(
-        "--config", 
-        type=str, 
+        "--config",
+        type=str,
         default="configs/default.yaml",
-        help="Path to configuration file"
+        help="Path to configuration file",
     )
     parser.add_argument(
-        "--resume", 
-        action="store_true",
-        help="Resume training from checkpoint"
+        "--resume", action="store_true", help="Resume training from checkpoint"
     )
     parser.add_argument(
-        "--device", 
-        type=str, 
-        default="auto",
-        help="Device to use (cuda, cpu, or auto)"
+        "--device", type=str, default="auto", help="Device to use (cuda, cpu, or auto)"
     )
     parser.add_argument(
-        "--log-level", 
-        type=str, 
+        "--log-level",
+        type=str,
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Logging level"
+        help="Logging level",
     )
     parser.add_argument(
-        "--tokenizer-only", 
+        "--tokenizer-only",
         action="store_true",
-        help="Only train the tokenizer, don't train the model"
+        help="Only train the tokenizer, don't train the model",
     )
     parser.add_argument(
-        "--dry-run", 
+        "--dry-run",
         action="store_true",
-        help="Run through setup without actual training"
+        help="Run through setup without actual training",
     )
     parser.add_argument(
-        "--use-streaming", 
+        "--use-streaming",
         action="store_true",
-        help="Use streaming data loading (recommended for large datasets)"
+        help="Use streaming data loading (recommended for large datasets)",
     )
     parser.add_argument(
-        "--no-streaming", 
+        "--no-streaming",
         action="store_true",
-        help="Disable streaming data loading (load all data into memory)"
+        help="Disable streaming data loading (load all data into memory)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Load configuration
     try:
         config = load_config(args.config)
     except Exception as e:
         print(f"Error loading config from {args.config}: {e}")
         return 1
-    
+
     # Setup logging
     setup_logging(log_dir=config.files.log_dir, log_level=args.log_level)
     logger = get_logger(__name__)
-    
+
     logger.info("Starting GPT training")
     logger.info(f"Configuration loaded from: {args.config}")
-    
+
     # Determine device
     if args.device == "auto":
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         device = torch.device(args.device)
-    
+
     logger.info(f"Using device: {device}")
-    
+
     # Determine streaming mode
     use_streaming = not args.no_streaming
     if args.use_streaming:
         use_streaming = True
-    
+
     logger.info(f"Streaming mode: {use_streaming}")
-    
+
     try:
         # Prepare fallback texts in case dataset loading fails
         fallback_texts = [
@@ -414,13 +413,14 @@ def main():
             "Collaborative learning involves working together.",
             "Peer learning shares knowledge among equals.",
             "Self-directed learning empowers individuals to guide their education.",
-            "Personalized learning adapts to individual needs."
+            "Personalized learning adapts to individual needs.",
         ]
-        
+
         # Extend fallback texts to meet sample requirements
-        while len(fallback_texts) < 50000:  # Ensure we have enough for larger configs
+        while len(
+                fallback_texts) < 50000:  # Ensure we have enough for larger configs
             fallback_texts.extend(fallback_texts)
-        
+
         # Load training data for tokenizer training
         logger.info("Loading training data for tokenizer...")
         tokenizer_texts = load_text_data(
@@ -428,19 +428,24 @@ def main():
             dataset_config=config.data.dataset_config,
             split=config.data.dataset_split,
             num_samples=config.data.tokenizer_training_samples,
-            cache_file=str(Path(config.files.output_dir) / "tokenizer_data.json"),
+            cache_file=str(
+                Path(
+                    config.files.output_dir) /
+                "tokenizer_data.json"),
             use_streaming=use_streaming,
-            fallback_texts=fallback_texts[:config.data.tokenizer_training_samples]
+            fallback_texts=fallback_texts[: config.data.tokenizer_training_samples],
         )
-        logger.info(f"Loaded {len(tokenizer_texts)} texts for tokenizer training")
-        
+        logger.info(
+            f"Loaded {len(tokenizer_texts)} texts for tokenizer training")
+
         # Initialize tokenizer
         logger.info("Initializing tokenizer...")
         tokenizer = BPETokenizer(
-            vocab_size=config.tokenizer.vocab_size or config.model.vocab_size - len(config.tokenizer.special_tokens),
-            special_tokens=config.tokenizer.special_tokens
+            vocab_size=config.tokenizer.vocab_size
+            or config.model.vocab_size - len(config.tokenizer.special_tokens),
+            special_tokens=config.tokenizer.special_tokens,
         )
-        
+
         # Train or load tokenizer
         tokenizer_path = Path(config.tokenizer.path)
         if tokenizer_path.exists():
@@ -451,14 +456,14 @@ def main():
             tokenizer.train(tokenizer_texts)
             logger.info(f"Saving tokenizer to {tokenizer_path}")
             tokenizer.save(tokenizer_path)
-        
+
         logger.info(f"Tokenizer vocabulary size: {tokenizer.get_vocab_size()}")
-        
+
         # If tokenizer-only mode, exit here
         if args.tokenizer_only:
             logger.info("Tokenizer-only mode: training complete")
             return 0
-        
+
         # Choose data loading strategy
         if use_streaming:
             logger.info("Using streaming data loading...")
@@ -471,16 +476,22 @@ def main():
                 max_length=config.model.max_block_size,
                 batch_size=config.training.batch_size,
                 max_samples=config.data.num_training_samples,
-                cache_file=str(Path(config.files.output_dir) / "train_data.json"),
-                fallback_texts=fallback_texts[:config.data.num_training_samples]
+                cache_file=str(
+                    Path(
+                        config.files.output_dir) /
+                    "train_data.json"),
+                fallback_texts=fallback_texts[:
+                                              config.data.num_training_samples],
             )
-            
+
             # For streaming, we create a separate validation stream
             # by using a different split or subset
             eval_dataloader = None
             if config.data.validation_split > 0:
                 # Use a portion of training data for validation
-                val_samples = int(config.data.num_training_samples * config.data.validation_split)
+                val_samples = int(
+                    config.data.num_training_samples * config.data.validation_split
+                )
                 eval_dataloader = create_streaming_dataloader(
                     dataset_name=config.data.dataset_name,
                     dataset_config=config.data.dataset_config,
@@ -489,8 +500,14 @@ def main():
                     max_length=config.model.max_block_size,
                     batch_size=config.training.batch_size,
                     max_samples=val_samples,
-                    cache_file=str(Path(config.files.output_dir) / "val_data.json"),
-                    fallback_texts=fallback_texts[config.data.num_training_samples:config.data.num_training_samples + val_samples]
+                    cache_file=str(
+                        Path(
+                            config.files.output_dir) /
+                        "val_data.json"),
+                    fallback_texts=fallback_texts[
+                        config.data.num_training_samples: config.data.num_training_samples
+                        + val_samples
+                    ],
                 )
         else:
             logger.info("Using traditional data loading...")
@@ -502,27 +519,28 @@ def main():
                 num_samples=config.data.num_training_samples,
                 cache_file=config.data.data_file,
                 use_streaming=False,
-                fallback_texts=fallback_texts[:config.data.num_training_samples]
+                fallback_texts=fallback_texts[:
+                                              config.data.num_training_samples],
             )
-            
+
             # Prepare datasets
             logger.info("Preparing datasets...")
             train_tokenized, val_tokenized = prepare_datasets(
                 texts=texts,
                 tokenizer=tokenizer,
                 max_length=config.model.max_block_size,
-                validation_split=config.data.validation_split
+                validation_split=config.data.validation_split,
             )
-            
+
             # Create data loaders
             train_dataloader = create_dataloader(
                 tokenized_texts=train_tokenized,
                 tokenizer=tokenizer,
                 max_length=config.model.max_block_size,
                 batch_size=config.training.batch_size,
-                shuffle=True
+                shuffle=True,
             )
-            
+
             eval_dataloader = None
             if val_tokenized:
                 eval_dataloader = create_dataloader(
@@ -530,9 +548,9 @@ def main():
                     tokenizer=tokenizer,
                     max_length=config.model.max_block_size,
                     batch_size=config.training.batch_size,
-                    shuffle=False
+                    shuffle=False,
                 )
-        
+
         # Initialize model
         logger.info("Initializing model...")
         model = GPT(
@@ -543,55 +561,52 @@ def main():
             heads=config.model.heads,
             dropout=config.model.dropout,
             max_seq_len=config.model.max_block_size,
-            pad_token_id=tokenizer.pad_token_id
+            pad_token_id=tokenizer.pad_token_id,
         )
-        
+
         # Initialize trainer
         logger.info("Initializing trainer...")
         trainer = Trainer(
-            model=model,
-            tokenizer=tokenizer,
-            config=config,
-            device=device
+            model=model, tokenizer=tokenizer, config=config, device=device
         )
-        
+
         # Dry run check
         if args.dry_run:
             logger.info("Dry run complete - setup successful")
             return 0
-        
+
         # Generate initial sample
         logger.info("Generating initial sample...")
         initial_sample = trainer.generate_sample(
             prompt="The future of artificial intelligence",
             max_new_tokens=50,
-            temperature=config.sampling.temperature_default
+            temperature=config.sampling.temperature_default,
         )
         logger.info(f"Initial sample: {initial_sample}")
-        
+
         # Start training
         logger.info("Starting training...")
         results = trainer.train(
             train_dataloader=train_dataloader,
             eval_dataloader=eval_dataloader,
-            resume_from_checkpoint=args.resume
+            resume_from_checkpoint=args.resume,
         )
-        
+
         # Generate final sample
         logger.info("Generating final sample...")
         final_sample = trainer.generate_sample(
             prompt="The future of artificial intelligence",
             max_new_tokens=100,
-            temperature=config.sampling.temperature_default
+            temperature=config.sampling.temperature_default,
         )
         logger.info(f"Final sample: {final_sample}")
-        
+
         # Log training results
         logger.info("Training completed successfully!")
         logger.info(f"Training results: {results}")
-        
+
         return 0
-        
+
     except Exception as e:
         logger.error(f"Training failed: {e}")
         raise

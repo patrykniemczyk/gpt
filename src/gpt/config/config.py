@@ -9,7 +9,7 @@ import yaml
 @dataclass
 class DataConfig:
     """Configuration for data loading and preprocessing."""
-    
+
     num_training_samples: int = 100000
     dataset_name: str = "HuggingFaceFW/fineweb"
     dataset_config: str = "CC-MAIN-2014-10"
@@ -17,7 +17,7 @@ class DataConfig:
     data_file: str = "data.json"
     tokenizer_training_samples: int = 10000
     validation_split: float = 0.1
-    
+
     def __post_init__(self):
         """Validate configuration values."""
         if self.num_training_samples <= 0:
@@ -31,7 +31,7 @@ class DataConfig:
 @dataclass
 class ModelConfig:
     """Configuration for model architecture."""
-    
+
     max_block_size: int = 512
     vocab_size: int = 50000
     embed_dim: int = 768
@@ -39,7 +39,7 @@ class ModelConfig:
     num_layers: int = 12
     heads: int = 12
     dropout: float = 0.1
-    
+
     def __post_init__(self):
         """Validate configuration values."""
         if self.max_block_size <= 0:
@@ -63,26 +63,28 @@ class ModelConfig:
 @dataclass
 class TokenizerConfig:
     """Configuration for tokenizer."""
-    
+
     path: str = "tokenizer.txt"
     vocab_size: Optional[int] = None  # Will use model.vocab_size - 3 if None
-    special_tokens: Dict[str, str] = field(default_factory=lambda: {
-        "bos": "<BOS>",
-        "eos": "<EOS>", 
-        "pad": "<PAD>",
-        "unk": "<UNK>"
-    })
-    
+    special_tokens: Dict[str, str] = field(
+        default_factory=lambda: {
+            "bos": "<BOS>",
+            "eos": "<EOS>",
+            "pad": "<PAD>",
+            "unk": "<UNK>",
+        }
+    )
+
     def __post_init__(self):
         """Validate configuration values."""
         if self.vocab_size is not None and self.vocab_size <= 0:
             raise ValueError("vocab_size must be positive")
 
 
-@dataclass  
+@dataclass
 class TrainingConfig:
     """Configuration for training parameters."""
-    
+
     batch_size: int = 32
     learning_rate: float = 5e-4
     weight_decay: float = 0.01
@@ -96,7 +98,7 @@ class TrainingConfig:
     save_interval: int = 5000
     early_stopping_patience: int = 10
     mixed_precision: bool = False
-    
+
     def __post_init__(self):
         """Validate configuration values."""
         if self.batch_size <= 0:
@@ -118,13 +120,13 @@ class TrainingConfig:
 @dataclass
 class SamplingConfig:
     """Configuration for text sampling."""
-    
+
     max_new_tokens: int = 512
     temperature_default: float = 1.0
     temperature_alt: float = 0.8
     top_k_default: int = 50
     top_p_default: float = 0.95
-    
+
     def __post_init__(self):
         """Validate configuration values."""
         if self.max_new_tokens <= 0:
@@ -142,12 +144,12 @@ class SamplingConfig:
 @dataclass
 class FilesConfig:
     """Configuration for file paths."""
-    
+
     checkpoint_path: str = "checkpoint.pth"
-    best_model_path: str = "best_model.pth" 
+    best_model_path: str = "best_model.pth"
     log_dir: str = "logs"
     output_dir: str = "outputs"
-    
+
     def __post_init__(self):
         """Validate and create directories if needed."""
         Path(self.log_dir).mkdir(exist_ok=True)
@@ -157,84 +159,86 @@ class FilesConfig:
 @dataclass
 class GPTConfig:
     """Main configuration class combining all sub-configurations."""
-    
+
     data: DataConfig = field(default_factory=DataConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     tokenizer: TokenizerConfig = field(default_factory=TokenizerConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
     sampling: SamplingConfig = field(default_factory=SamplingConfig)
     files: FilesConfig = field(default_factory=FilesConfig)
-    
+
     def __post_init__(self):
         """Post-process configuration after initialization."""
         # Set tokenizer vocab_size if not specified
         if self.tokenizer.vocab_size is None:
-            self.tokenizer.vocab_size = self.model.vocab_size - len(self.tokenizer.special_tokens)
+            self.tokenizer.vocab_size = self.model.vocab_size - len(
+                self.tokenizer.special_tokens
+            )
 
 
 def load_config(config_path: Union[str, Path]) -> GPTConfig:
     """Load configuration from YAML file.
-    
+
     Args:
         config_path: Path to YAML configuration file
-        
+
     Returns:
         GPTConfig: Loaded and validated configuration
-        
+
     Raises:
         FileNotFoundError: If config file doesn't exist
         ValueError: If config validation fails
         yaml.YAMLError: If YAML parsing fails
     """
     config_path = Path(config_path)
-    
+
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
-    
+
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config_dict = yaml.safe_load(f)
     except yaml.YAMLError as e:
         raise yaml.YAMLError(f"Error parsing YAML config: {e}")
-    
+
     if config_dict is None:
         config_dict = {}
-    
+
     # Convert nested dicts to dataclass instances
     config_kwargs = {}
     for field_name, field_type in [
-        ('data', DataConfig),
-        ('model', ModelConfig), 
-        ('tokenizer', TokenizerConfig),
-        ('training', TrainingConfig),
-        ('sampling', SamplingConfig),
-        ('files', FilesConfig)
+        ("data", DataConfig),
+        ("model", ModelConfig),
+        ("tokenizer", TokenizerConfig),
+        ("training", TrainingConfig),
+        ("sampling", SamplingConfig),
+        ("files", FilesConfig),
     ]:
         if field_name in config_dict:
             config_kwargs[field_name] = field_type(**config_dict[field_name])
-    
+
     return GPTConfig(**config_kwargs)
 
 
 def save_config(config: GPTConfig, config_path: Union[str, Path]) -> None:
     """Save configuration to YAML file.
-    
+
     Args:
         config: Configuration to save
         config_path: Path to save configuration file
     """
     config_path = Path(config_path)
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Convert dataclasses to dict
     config_dict = {
-        'data': config.data.__dict__,
-        'model': config.model.__dict__,
-        'tokenizer': config.tokenizer.__dict__,
-        'training': config.training.__dict__,
-        'sampling': config.sampling.__dict__,
-        'files': config.files.__dict__
+        "data": config.data.__dict__,
+        "model": config.model.__dict__,
+        "tokenizer": config.tokenizer.__dict__,
+        "training": config.training.__dict__,
+        "sampling": config.sampling.__dict__,
+        "files": config.files.__dict__,
     }
-    
-    with open(config_path, 'w', encoding='utf-8') as f:
+
+    with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config_dict, f, default_flow_style=False, indent=2)
