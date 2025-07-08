@@ -282,7 +282,7 @@ def generate_text(
     """Generate text from a prompt."""
     # Encode prompt
     if prompt:
-        input_ids = tokenizer.encode(prompt)
+        input_ids = [tokenizer.bos_token_id] + tokenizer.encode(prompt)
     else:
         input_ids = [tokenizer.bos_token_id]
 

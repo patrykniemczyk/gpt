@@ -17,11 +17,11 @@ python scripts/train.py --config configs/small.yaml --use-streaming
 Interactive mode:
 
 ```bash
-python scripts/inference.py --model-path outputs/best_model.pth --interactive
+python scripts/inference.py --model-path outputs/checkpoints/best_model.pth --config configs/small.yaml --interactive
 ```
 
 Single generation:
 
 ```bash
-python scripts/inference.py --model-path outputs/best_model.pth --prompt "The future of AI" --max-tokens 100
+python scripts/inference.py --model-path outputs/checkpoints/best_model.pth --config configs/small.yaml --prompt "The future of AI"
 ```
