@@ -1,9 +1,10 @@
 """Checkpoint management utilities."""
 
-import os
-import torch
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, List
+
+import torch
+
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)

@@ -1,8 +1,10 @@
 """Transformer block components."""
 
 from typing import Optional
+
 import torch
-import torch.nn as nn
+from torch import nn
+
 from .attention import SelfAttention
 from ..utils.logging import get_logger
 
@@ -21,8 +23,7 @@ class FeedForward(nn.Module):
         dropout: Dropout probability (default: 0.1)
     """
 
-    def __init__(self, embed_dim: int, ff_dim: int,
-                 dropout: float = 0.1) -> None:
+    def __init__(self, embed_dim: int, ff_dim: int, dropout: float = 0.1) -> None:
         super().__init__()
 
         self.embed_dim = embed_dim

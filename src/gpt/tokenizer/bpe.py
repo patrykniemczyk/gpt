@@ -108,8 +108,7 @@ class BPETokenizer:
         # But we want the total to be vocab_size
         num_special = len(self.special_tokens)
         if vocab_size < 256 + num_special:
-            raise ValueError(
-                f"vocab_size must be at least {256 + num_special}")
+            raise ValueError(f"vocab_size must be at least {256 + num_special}")
 
         self.vocab_size = vocab_size
         self.max_merges = vocab_size - 256 - num_special
@@ -226,8 +225,7 @@ class BPETokenizer:
                     f"(frequency: {frequency})"
                 )
 
-        logger.info(
-            f"Training complete. Final vocabulary size: {current_vocab_size}")
+        logger.info(f"Training complete. Final vocabulary size: {current_vocab_size}")
 
     def encode(self, text: str, add_special_tokens: bool = False) -> List[int]:
         """Encode text into token IDs.
@@ -240,8 +238,7 @@ class BPETokenizer:
             List of token IDs
         """
         if not text:
-            return [self.bos_token_id,
-                    self.eos_token_id] if add_special_tokens else []
+            return [self.bos_token_id, self.eos_token_id] if add_special_tokens else []
 
         # Convert to bytes and then to token sequence
         text_bytes = text.encode("utf-8")
@@ -259,9 +256,7 @@ class BPETokenizer:
                 break
 
             # Find valid pairs (those that exist in our merge dictionary)
-            valid_pairs = [
-                pair for pair in pair_frequencies.keys() if pair in self.merges
-            ]
+            valid_pairs = [pair for pair in pair_frequencies if pair in self.merges]
 
             if not valid_pairs:
                 break
@@ -287,8 +282,7 @@ class BPETokenizer:
 
         return tokens
 
-    def decode(self, token_ids: List[int],
-               skip_special_tokens: bool = True) -> str:
+    def decode(self, token_ids: List[int], skip_special_tokens: bool = True) -> str:
         """Decode token IDs back to text.
 
         Args:
@@ -381,10 +375,10 @@ class BPETokenizer:
                 token_id = int(token_id_str)
                 self.vocab[token_id] = vocab_str.encode("utf-8")
 
-            logger.info(f"Tokenizer loaded from {path}")
+            logger.info("Tokenizer loaded from %s", path)
 
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            raise ValueError(f"Error loading tokenizer: {e}")
+            raise ValueError(f"Error loading tokenizer: {e}") from e
 
     def get_vocab_size(self) -> int:
         """Get the full vocabulary size including special tokens.

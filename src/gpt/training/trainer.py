@@ -1,9 +1,8 @@
 """Main training orchestration and utilities."""
 
 import time
-import math
 from pathlib import Path
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -59,7 +58,7 @@ class Trainer:
         # Initialize learning rate scheduler
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer,
-            T_max=config.training.scheduler_T_max,
+            T_max=config.training.scheduler_t_max,
             eta_min=config.training.scheduler_eta_min,
         )
 
@@ -118,8 +117,7 @@ class Trainer:
         training_start_time = time.time()
 
         try:
-            for epoch in range(self.current_epoch,
-                               self.config.training.epochs):
+            for epoch in range(self.current_epoch, self.config.training.epochs):
                 self.current_epoch = epoch
 
                 # Train for one epoch
@@ -150,8 +148,7 @@ class Trainer:
 
                 # Check early stopping
                 if self._should_early_stop():
-                    logger.info(
-                        f"Early stopping triggered after {epoch + 1} epochs")
+                    logger.info(f"Early stopping triggered after {epoch + 1} epochs")
                     break
 
         except KeyboardInterrupt:
@@ -239,8 +236,7 @@ class Trainer:
 
             # Update metrics
             step_time = time.time() - step_start_time
-            num_tokens = (
-                target_ids != self.tokenizer.pad_token_id).sum().item()
+            num_tokens = (target_ids != self.tokenizer.pad_token_id).sum().item()
 
             epoch_metrics.update(
                 loss=loss.item(),
@@ -273,8 +269,7 @@ class Trainer:
                 self.current_step % self.config.training.eval_interval == 0
                 and self.current_step > 0
             ):
-                logger.info(
-                    f"Step {self.current_step} metrics: {current_metrics}")
+                logger.info(f"Step {self.current_step} metrics: {current_metrics}")
 
         epoch_time = time.time() - epoch_start_time
         epoch_metrics_summary = epoch_metrics.get_current_metrics()
@@ -378,10 +373,8 @@ class Trainer:
             self.current_step = checkpoint_data.get("step", 0)
 
             extra_data = checkpoint_data.get("extra_data", {})
-            self.best_eval_loss = extra_data.get(
-                "best_eval_loss", float("inf"))
-            self.early_stopping_counter = extra_data.get(
-                "early_stopping_counter", 0)
+            self.best_eval_loss = extra_data.get("best_eval_loss", float("inf"))
+            self.early_stopping_counter = extra_data.get("early_stopping_counter", 0)
 
             logger.info(
                 f"Resumed training from epoch {self.current_epoch + 1}, "
@@ -398,7 +391,7 @@ class Trainer:
             True if training should stop early
         """
         patience = self.config.training.early_stopping_patience
-        return patience > 0 and self.early_stopping_counter >= patience
+        return (patience > 0) and (self.early_stopping_counter >= patience)
 
     def _log_epoch_results(
         self,
@@ -425,8 +418,7 @@ class Trainer:
                 f"Perplexity: {eval_metrics.get('eval_perplexity', 0):.2f}"
             )
 
-        logger.info(
-            f"  Learning Rate: {train_metrics.get('learning_rate', 0):.2e}")
+        logger.info(f"  Learning Rate: {train_metrics.get('learning_rate', 0):.2e}")
         logger.info(f"  Epoch Time: {train_metrics.get('epoch_time', 0):.2f}s")
 
     def generate_sample(
@@ -457,10 +449,7 @@ class Trainer:
         else:
             input_ids = [self.tokenizer.bos_token_id]
 
-        input_tensor = torch.tensor(
-            [input_ids],
-            dtype=torch.long).to(
-            self.device)
+        input_tensor = torch.tensor([input_ids], dtype=torch.long).to(self.device)
 
         # Generate
         with torch.no_grad():

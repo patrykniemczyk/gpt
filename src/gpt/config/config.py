@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Union
 import yaml
 
 
@@ -90,7 +90,7 @@ class TrainingConfig:
     weight_decay: float = 0.01
     epochs: int = 50
     max_grad_norm: float = 1.0
-    scheduler_T_max: int = 1000
+    scheduler_t_max: int = 1000
     scheduler_eta_min: float = 1e-6
     warmup_steps: int = 1000
     gradient_accumulation_steps: int = 1

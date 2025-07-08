@@ -1,8 +1,10 @@
 """Self-attention mechanism for transformer models."""
 
 from typing import Optional
+
 import torch
-import torch.nn as nn
+from torch import nn
+
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -49,10 +51,7 @@ class SelfAttention(nn.Module):
 
         # Register causal mask as buffer (not a parameter)
         causal_mask = (
-            torch.tril(
-                torch.ones(
-                    max_seq_len,
-                    max_seq_len)).unsqueeze(0).unsqueeze(0)
+            torch.tril(torch.ones(max_seq_len, max_seq_len)).unsqueeze(0).unsqueeze(0)
         )
         self.register_buffer("causal_mask", causal_mask)
 
@@ -97,13 +96,11 @@ class SelfAttention(nn.Module):
 
         # Compute attention scores
         # Shape: (batch_size, heads, seq_len, seq_len)
-        attention_scores = torch.einsum(
-            "bhid,bhjd->bhij", q, k) / (self.head_dim**0.5)
+        attention_scores = torch.einsum("bhid,bhjd->bhij", q, k) / (self.head_dim**0.5)
 
         # Apply causal mask (prevent attending to future tokens)
         causal_mask = self.causal_mask[:, :, :seq_len, :seq_len].to(x.device)
-        attention_scores = attention_scores.masked_fill(
-            causal_mask == 0, float("-inf"))
+        attention_scores = attention_scores.masked_fill(causal_mask == 0, float("-inf"))
 
         # Apply padding mask if provided
         if padding_mask is not None:
@@ -119,8 +116,7 @@ class SelfAttention(nn.Module):
 
         # Apply attention to values
         # Shape: (batch_size, heads, seq_len, head_dim)
-        attention_output = torch.einsum(
-            "bhij,bhjd->bhid", attention_weights, v)
+        attention_output = torch.einsum("bhij,bhjd->bhid", attention_weights, v)
 
         # Concatenate heads and project to output dimension
         # Shape: (batch_size, seq_len, embed_dim)

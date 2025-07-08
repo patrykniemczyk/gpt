@@ -3,7 +3,7 @@
 import time
 import math
 from typing import Dict, List, Optional, Any
-from collections import defaultdict, deque
+from collections import deque
 import torch
 import torch.nn.functional as F
 from ..utils.logging import get_logger
@@ -48,8 +48,7 @@ class MetricsTracker:
         # Step counting
         self.step_count = 0
 
-        logger.debug(
-            f"Initialized MetricsTracker with window_size={window_size}")
+        logger.debug(f"Initialized MetricsTracker with window_size={window_size}")
 
     def update(
         self,
@@ -103,8 +102,7 @@ class MetricsTracker:
 
         # Perplexity metrics
         if self.perplexities:
-            valid_perplexities = [
-                p for p in self.perplexities if math.isfinite(p)]
+            valid_perplexities = [p for p in self.perplexities if math.isfinite(p)]
             if valid_perplexities:
                 metrics["perplexity"] = sum(valid_perplexities) / len(
                     valid_perplexities
@@ -309,7 +307,6 @@ def compute_token_accuracy(
 
     accuracy = correct_tokens / total_tokens if total_tokens > 0 else 0.0
 
-    logger.info(
-        f"Token accuracy: {accuracy:.4f} ({correct_tokens}/{total_tokens})")
+    logger.info(f"Token accuracy: {accuracy:.4f} ({correct_tokens}/{total_tokens})")
 
     return accuracy

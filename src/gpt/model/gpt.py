@@ -1,8 +1,12 @@
 """Main GPT model implementation."""
 
-from typing import Optional, Dict, Any
+import json
+import os
+from typing import Optional
+
 import torch
-import torch.nn as nn
+from torch import nn
+
 from .transformer import TransformerBlock
 from ..utils.logging import get_logger
 
@@ -81,27 +85,24 @@ class GPT(nn.Module):
         self.lm_head = nn.Linear(embed_dim, vocab_size)
 
         # Register position indices as buffer
-        self.register_buffer(
-            "position_indices",
-            torch.arange(max_seq_len).unsqueeze(0))
+        self.register_buffer("position_indices", torch.arange(max_seq_len).unsqueeze(0))
 
         # Initialize weights
         self.apply(self._init_weights)
 
         # Log model configuration
         total_params = sum(p.numel() for p in self.parameters())
-        trainable_params = sum(p.numel()
-                               for p in self.parameters() if p.requires_grad)
+        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-        logger.info(f"Initialized GPT model:")
-        logger.info(f"  - vocab_size: {vocab_size}")
-        logger.info(f"  - embed_dim: {embed_dim}")
-        logger.info(f"  - ff_dim: {ff_dim}")
-        logger.info(f"  - num_layers: {num_layers}")
-        logger.info(f"  - heads: {heads}")
-        logger.info(f"  - max_seq_len: {max_seq_len}")
-        logger.info(f"  - total_params: {total_params:,}")
-        logger.info(f"  - trainable_params: {trainable_params:,}")
+        logger.info("Initialized GPT model:")
+        logger.info("  - vocab_size: %s", vocab_size)
+        logger.info("  - embed_dim: %s", embed_dim)
+        logger.info("  - ff_dim: %s", ff_dim)
+        logger.info("  - num_layers: %s", num_layers)
+        logger.info("  - heads: %s", heads)
+        logger.info("  - max_seq_len: %s", max_seq_len)
+        logger.info("  - total_params: %s", f"{total_params:,}")
+        logger.info("  - trainable_params: %s", f"{trainable_params:,}")
 
     def _init_weights(self, module: nn.Module) -> None:
         """Initialize weights following GPT conventions.
@@ -155,8 +156,7 @@ class GPT(nn.Module):
             attention_mask = self.create_padding_mask(input_ids)
 
         # Get position indices for this sequence length
-        position_ids = self.position_indices[:, :seq_len].expand(
-            batch_size, seq_len)
+        position_ids = self.position_indices[:, :seq_len].expand(batch_size, seq_len)
         position_ids = position_ids.to(input_ids.device)
 
         # Compute embeddings
@@ -206,7 +206,7 @@ class GPT(nn.Module):
             for _ in range(max_new_tokens):
                 # Truncate if sequence is too long
                 if input_ids.size(1) >= self.max_seq_len:
-                    input_ids = input_ids[:, -self.max_seq_len:]
+                    input_ids = input_ids[:, -self.max_seq_len :]
 
                 # Forward pass
                 logits = self(input_ids)
@@ -251,16 +251,14 @@ class GPT(nn.Module):
                 if do_sample:
                     # Handle case where all logits are -inf
                     if torch.all(
-                        torch.isinf(next_token_logits) & (
-                            next_token_logits < 0)
+                        torch.isinf(next_token_logits) & (next_token_logits < 0)
                     ):
                         next_token_logits = torch.zeros_like(next_token_logits)
 
                     probs = torch.softmax(next_token_logits, dim=-1)
                     next_token = torch.multinomial(probs, num_samples=1)
                 else:
-                    next_token = torch.argmax(
-                        next_token_logits, dim=-1, keepdim=True)
+                    next_token = torch.argmax(next_token_logits, dim=-1, keepdim=True)
 
                 # Append to sequence
                 input_ids = torch.cat([input_ids, next_token], dim=1)
@@ -292,17 +290,10 @@ class GPT(nn.Module):
         Args:
             save_directory: Directory to save the model
         """
-        import os
-        import json
-
         os.makedirs(save_directory, exist_ok=True)
 
         # Save model weights
-        torch.save(
-            self.state_dict(),
-            os.path.join(
-                save_directory,
-                "pytorch_model.bin"))
+        torch.save(self.state_dict(), os.path.join(save_directory, "pytorch_model.bin"))
 
         # Save model configuration
         config = {
@@ -315,10 +306,12 @@ class GPT(nn.Module):
             "pad_token_id": self.pad_token_id,
         }
 
-        with open(os.path.join(save_directory, "config.json"), "w") as f:
+        with open(
+            os.path.join(save_directory, "config.json"), "w", encoding="utf-8"
+        ) as f:
             json.dump(config, f, indent=2)
 
-        logger.info(f"Model saved to {save_directory}")
+        logger.info("Model saved to %s", save_directory)
 
     @classmethod
     def from_pretrained(cls, model_directory: str) -> "GPT":
@@ -330,12 +323,9 @@ class GPT(nn.Module):
         Returns:
             Loaded GPT model
         """
-        import os
-        import json
-
         # Load configuration
         config_path = os.path.join(model_directory, "config.json")
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
 
         # Create model
@@ -345,5 +335,5 @@ class GPT(nn.Module):
         weights_path = os.path.join(model_directory, "pytorch_model.bin")
         model.load_state_dict(torch.load(weights_path, map_location="cpu"))
 
-        logger.info(f"Model loaded from {model_directory}")
+        logger.info("Model loaded from %s", model_directory)
         return model

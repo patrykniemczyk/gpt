@@ -33,7 +33,7 @@ training:
   weight_decay: 0.01
   epochs: 20
   max_grad_norm: 1.0
-  scheduler_T_max: 500
+  scheduler_t_max: 500
   scheduler_eta_min: 0.000001
   warmup_steps: 500
   gradient_accumulation_steps: 2

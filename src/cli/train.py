@@ -1,5 +1,11 @@
 """Command line interface for training GPT models."""
 
+import argparse
+import sys
+from pathlib import Path
+
+import torch
+
 from gpt.utils.logging import setup_logging, get_logger
 from gpt.training.dataset import (
     load_text_data,
@@ -10,11 +16,7 @@ from gpt.training.dataset import (
 from gpt.training import Trainer
 from gpt.tokenizer import BPETokenizer
 from gpt.model import GPT
-from gpt.config import load_config, GPTConfig
-import argparse
-import sys
-from pathlib import Path
-import torch
+from gpt.config import load_config
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -78,7 +80,7 @@ def main():
     logger = get_logger(__name__)
 
     logger.info("Starting GPT training")
-    logger.info(f"Configuration loaded from: {args.config}")
+    logger.info("Configuration loaded from: %s", args.config)
 
     # Determine device
     if args.device == "auto":
@@ -86,14 +88,14 @@ def main():
     else:
         device = torch.device(args.device)
 
-    logger.info(f"Using device: {device}")
+    logger.info("Using device: %s", device)
 
     # Determine streaming mode
     use_streaming = not args.no_streaming
     if args.use_streaming:
         use_streaming = True
 
-    logger.info(f"Streaming mode: {use_streaming}")
+    logger.info("Streaming mode: %s", use_streaming)
 
     try:
         # Prepare fallback texts in case dataset loading fails
@@ -345,7 +347,8 @@ def main():
             "Disease prevention reduces the burden of illness.",
             "Vaccination programs protect communities from infectious diseases.",
             "Antimicrobial resistance threatens the effectiveness of antibiotics.",
-            "One health approaches recognize interconnections between human, animal, and environmental health.",
+            "One health approaches recognize interconnections between human, "
+            "animal, and environmental health.",
             "Zoonotic diseases can spread from animals to humans.",
             "Vector-borne diseases are transmitted by insects and other vectors.",
             "Waterborne diseases spread through contaminated water.",
@@ -417,8 +420,7 @@ def main():
         ]
 
         # Extend fallback texts to meet sample requirements
-        while len(
-                fallback_texts) < 50000:  # Ensure we have enough for larger configs
+        while len(fallback_texts) < 50000:  # Ensure we have enough for larger configs
             fallback_texts.extend(fallback_texts)
 
         # Load training data for tokenizer training
@@ -428,15 +430,11 @@ def main():
             dataset_config=config.data.dataset_config,
             split=config.data.dataset_split,
             num_samples=config.data.tokenizer_training_samples,
-            cache_file=str(
-                Path(
-                    config.files.output_dir) /
-                "tokenizer_data.json"),
+            cache_file=str(Path(config.files.output_dir) / "tokenizer_data.json"),
             use_streaming=use_streaming,
             fallback_texts=fallback_texts[: config.data.tokenizer_training_samples],
         )
-        logger.info(
-            f"Loaded {len(tokenizer_texts)} texts for tokenizer training")
+        logger.info(f"Loaded {len(tokenizer_texts)} texts for tokenizer training")
 
         # Initialize tokenizer
         logger.info("Initializing tokenizer...")
@@ -476,12 +474,8 @@ def main():
                 max_length=config.model.max_block_size,
                 batch_size=config.training.batch_size,
                 max_samples=config.data.num_training_samples,
-                cache_file=str(
-                    Path(
-                        config.files.output_dir) /
-                    "train_data.json"),
-                fallback_texts=fallback_texts[:
-                                              config.data.num_training_samples],
+                cache_file=str(Path(config.files.output_dir) / "train_data.json"),
+                fallback_texts=fallback_texts[: config.data.num_training_samples],
             )
 
             # For streaming, we create a separate validation stream
@@ -500,12 +494,9 @@ def main():
                     max_length=config.model.max_block_size,
                     batch_size=config.training.batch_size,
                     max_samples=val_samples,
-                    cache_file=str(
-                        Path(
-                            config.files.output_dir) /
-                        "val_data.json"),
+                    cache_file=str(Path(config.files.output_dir) / "val_data.json"),
                     fallback_texts=fallback_texts[
-                        config.data.num_training_samples: config.data.num_training_samples
+                        config.data.num_training_samples : config.data.num_training_samples
                         + val_samples
                     ],
                 )
@@ -519,8 +510,7 @@ def main():
                 num_samples=config.data.num_training_samples,
                 cache_file=config.data.data_file,
                 use_streaming=False,
-                fallback_texts=fallback_texts[:
-                                              config.data.num_training_samples],
+                fallback_texts=fallback_texts[: config.data.num_training_samples],
             )
 
             # Prepare datasets
@@ -608,8 +598,7 @@ def main():
         return 0
 
     except Exception as e:
-        logger.error(f"Training failed: {e}")
-        raise
+        logger.error("Training failed: %s", e)
         return 1
 
 

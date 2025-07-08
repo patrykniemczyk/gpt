@@ -1,13 +1,15 @@
 """Command line interface for inference with GPT models."""
 
+import argparse
+import sys
+from pathlib import Path
+
+import torch
+
 from gpt.utils.logging import setup_logging, get_logger
 from gpt.tokenizer import BPETokenizer
 from gpt.model import GPT
 from gpt.config import load_config
-import argparse
-import sys
-from pathlib import Path
-import torch
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -80,11 +82,11 @@ def main():
     else:
         device = torch.device(args.device)
 
-    logger.info(f"Using device: {device}")
+    logger.info("Using device: %s", device)
 
     try:
         # Load model and tokenizer
-        model, tokenizer, config = load_model_and_tokenizer(
+        model, tokenizer, _ = load_model_and_tokenizer(
             model_path=args.model_path,
             tokenizer_path=args.tokenizer_path,
             config_path=args.config,
@@ -92,7 +94,7 @@ def main():
         )
 
         logger.info("Model and tokenizer loaded successfully")
-        logger.info(f"Model has {model.get_num_params():,} parameters")
+        logger.info("Model has %s parameters", f"{model.get_num_params():,}")
 
         if args.interactive:
             # Interactive mode
@@ -126,7 +128,7 @@ def main():
         return 0
 
     except Exception as e:
-        logger.error(f"Inference failed: {e}")
+        logger.error("Inference failed: %s", e)
         return 1
 
 
@@ -188,8 +190,7 @@ def load_model_and_tokenizer(
                     break
 
         if config_path is None:
-            raise ValueError(
-                "Config file is required when loading from checkpoint")
+            raise ValueError("Config file is required when loading from checkpoint")
 
         # Load config and create model
         config = load_config(config_path)
@@ -207,12 +208,10 @@ def load_model_and_tokenizer(
                     break
 
         if tokenizer_path is None:
-            raise ValueError(
-                "Tokenizer file is required when loading from checkpoint")
+            raise ValueError("Tokenizer file is required when loading from checkpoint")
 
         # Load tokenizer first to get vocab size
-        tokenizer = BPETokenizer(
-            special_tokens=config.tokenizer.special_tokens)
+        tokenizer = BPETokenizer(special_tokens=config.tokenizer.special_tokens)
         tokenizer.load(tokenizer_path)
 
         # Create model
@@ -303,9 +302,7 @@ def generate_text(
         )
 
     # Decode
-    generated_text = tokenizer.decode(
-        output_ids[0].tolist(),
-        skip_special_tokens=True)
+    generated_text = tokenizer.decode(output_ids[0].tolist(), skip_special_tokens=True)
 
     return generated_text
 
@@ -331,13 +328,13 @@ def run_interactive_inference(
 
             if prompt.lower() in ["quit", "exit"]:
                 break
-            elif prompt.lower() == "help":
+            if prompt.lower() == "help":
                 print("\nCommands:")
                 print("  help - Show this help message")
                 print("  quit/exit - Exit the program")
                 print("  Any other text will be used as a prompt for generation")
                 continue
-            elif not prompt:
+            if not prompt:
                 continue
 
             print("\nGenerating...")
@@ -352,7 +349,7 @@ def run_interactive_inference(
                 device=device,
             )
 
-            print(f"\nGenerated text:")
+            print("\nGenerated text:")
             print("-" * 30)
             print(generated_text)
             print("-" * 30)

@@ -1,11 +1,14 @@
 """Dataset utilities for text data loading and preprocessing."""
 
 import json
-import torch
+import random
 from pathlib import Path
 from typing import List, Optional, Union, Tuple, Iterator, Dict
+
+import torch
 from torch.utils.data import Dataset, DataLoader, IterableDataset
-from datasets import load_dataset, IterableDataset as HFIterableDataset
+from datasets import load_dataset
+
 from ..tokenizer import BPETokenizer
 from ..utils.logging import get_logger
 
@@ -149,15 +152,12 @@ class StreamingTextDataset(IterableDataset):
                 for sample in cached_data:
                     if "input_tokens" in sample and "target_tokens" in sample:
                         yield (
-                            torch.tensor(
-                                sample["input_tokens"], dtype=torch.long),
-                            torch.tensor(
-                                sample["target_tokens"], dtype=torch.long),
+                            torch.tensor(sample["input_tokens"], dtype=torch.long),
+                            torch.tensor(sample["target_tokens"], dtype=torch.long),
                         )
                 return
             except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                logger.warning(
-                    f"Failed to load cache file: {e}, streaming from source")
+                logger.warning(f"Failed to load cache file: {e}, streaming from source")
 
         # Stream from HuggingFace dataset
         logger.info(f"Streaming from {self.dataset_name}")
@@ -190,8 +190,7 @@ class StreamingTextDataset(IterableDataset):
 
                     # Convert to tensors
                     input_tensor = torch.tensor(input_tokens, dtype=torch.long)
-                    target_tensor = torch.tensor(
-                        target_tokens, dtype=torch.long)
+                    target_tensor = torch.tensor(target_tokens, dtype=torch.long)
 
                     # Save for caching if enabled
                     if self.cache_file:
@@ -216,16 +215,14 @@ class StreamingTextDataset(IterableDataset):
             if self.cache_file and processed_samples:
                 self._save_cache(processed_samples)
 
-            logger.info(
-                f"Streamed {samples_yielded} samples from {self.dataset_name}")
+            logger.info(f"Streamed {samples_yielded} samples from {self.dataset_name}")
 
         except Exception as e:
             logger.error(f"Failed to stream from {self.dataset_name}: {e}")
 
             # Use fallback texts if provided
             if self.fallback_texts:
-                logger.info(
-                    f"Using fallback texts: {len(self.fallback_texts)} samples")
+                logger.info(f"Using fallback texts: {len(self.fallback_texts)} samples")
 
                 processed_samples = []
                 samples_yielded = 0
@@ -241,14 +238,11 @@ class StreamingTextDataset(IterableDataset):
                             continue
 
                         # Create sample
-                        input_tokens, target_tokens = self._process_tokens(
-                            tokens)
+                        input_tokens, target_tokens = self._process_tokens(tokens)
 
                         # Convert to tensors
-                        input_tensor = torch.tensor(
-                            input_tokens, dtype=torch.long)
-                        target_tensor = torch.tensor(
-                            target_tokens, dtype=torch.long)
+                        input_tensor = torch.tensor(input_tokens, dtype=torch.long)
+                        target_tensor = torch.tensor(target_tokens, dtype=torch.long)
 
                         # Save for caching if enabled
                         if self.cache_file:
@@ -280,8 +274,7 @@ class StreamingTextDataset(IterableDataset):
 
             raise
 
-    def _process_tokens(
-            self, tokens: List[int]) -> Tuple[List[int], List[int]]:
+    def _process_tokens(self, tokens: List[int]) -> Tuple[List[int], List[int]]:
         """Process tokens into input and target sequences."""
         # Truncate if too long (leave space for BOS/EOS)
         if len(tokens) > self.max_length - 2:
@@ -356,8 +349,7 @@ def load_text_data(
             logger.info(f"Loaded {len(texts)} texts from cache")
             return texts
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            logger.warning(
-                f"Failed to load cache file: {e}, loading from source")
+            logger.warning(f"Failed to load cache file: {e}, loading from source")
 
     # Load from HuggingFace datasets
     logger.info(f"Loading dataset: {dataset_name}")
@@ -375,8 +367,7 @@ def load_text_data(
         texts = []
         for i, sample in enumerate(dataset):
             if text_column not in sample:
-                logger.warning(
-                    f"Text column '{text_column}' not found in sample {i}")
+                logger.warning(f"Text column '{text_column}' not found in sample {i}")
                 continue
 
             text = sample[text_column]
@@ -427,7 +418,7 @@ def load_text_data(
 def prepare_datasets(
     texts: List[str],
     tokenizer: BPETokenizer,
-    max_length: int,
+    max_length: int,  # pylint: disable=unused-argument
     validation_split: float = 0.1,
     train_shuffle: bool = True,
 ) -> Tuple[List[List[int]], List[List[int]]]:
@@ -447,8 +438,7 @@ def prepare_datasets(
         ValueError: If validation_split is invalid
     """
     if not 0 <= validation_split < 1:
-        raise ValueError(
-            "validation_split must be between 0 and 1 (exclusive)")
+        raise ValueError("validation_split must be between 0 and 1 (exclusive)")
 
     logger.info(f"Tokenizing {len(texts)} texts...")
 
@@ -474,8 +464,6 @@ def prepare_datasets(
         val_tokenized = tokenized_texts[split_idx:]
 
         if train_shuffle:
-            import random
-
             random.shuffle(train_tokenized)
 
         logger.info(
@@ -487,8 +475,6 @@ def prepare_datasets(
         val_tokenized = []
 
         if train_shuffle:
-            import random
-
             random.shuffle(train_tokenized)
 
         logger.info(f"Using all {len(train_tokenized)} samples for training")
